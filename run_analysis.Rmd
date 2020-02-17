@@ -1,0 +1,215 @@
+---
+title: "Getting and cleaning data"
+output:
+  html_document:
+    df_print: paged
+---
+
+### Introduction
+As this is quite a long exercise, I have presented my findings as an R markdown script with explanations of each step taken.
+
+#### Loads the required dplyr and tidyr packages.
+```{r}
+library(dplyr)
+library(tidyr)
+```
+
+---
+
+#### Get Features  
+Reads the features data file in, separating data onto new lines.  
+There is no header present and all columns are converted to character data.  
+The features data contains the final column names.  
+Print out top 5 column headers.  
+```{r}
+features <- read.delim("data/features.txt", sep = "\n", colClasses = "character", header = FALSE)
+features[1:5,]
+```
+
+Separates the feature data columns into index and value based on a white space separator.  
+Splits data eg 1 <--> tBodyAcc-mean()-X  
+```{r}
+featuresDf <- separate(features, 1, c("c", "v"), sep = "(\\s\\s|\\s)")
+featuresDf[1:5,]
+```
+
+Produces a logical vector isolating the features we are interested in which contain \*mean or \*std  
+This is an important vector which we will use later to isolate the columns we are interested in.  
+```{r}
+interestedFeatures <- grepl(".*mean.*|.*std.*", featuresDf[,2])
+interestedFeatures[1:5]
+```
+
+---
+
+#### Prepare Training Data  
+
+First we need to read in the training data/train  
+
+Reads in the y training data set and sets the column name to activity
+```{r}
+y_train <- read.delim("data/train/y_train.txt",  sep = "\n", colClasses = "character", header = FALSE)
+colnames(y_train) <- "activity"
+y_train[1:5,]
+```
+
+Gets the training subjects data and sets the column name to subject.  
+```{r}
+training_subjects <- read.delim("data/train/subject_train.txt",  sep = "\n", colClasses = "character", header = FALSE)
+colnames(training_subjects) <- "subject"
+training_subjects[1:5,]
+```
+Read in the x_training data and split by a whitespace separator.  
+```{r}
+x_train <- read.delim("data/train/x_train.txt", sep = "\n", colClasses = "character", header = FALSE)
+xtrain <- separate(x_train, 1, as.character(1:562), sep = "(\\s\\s|\\s)")
+xtrain[1:5,]
+```
+
+Remove first empty column and set all column names using the features data frame.  
+```{r}
+xtrain <- xtrain[,2:562]
+colnames(xtrain) <- featuresDf[,2]
+xtrain[1:5,]
+```
+
+Select only the features that we are interested in and join y and x data sets to form a training data set.
+```{r}
+xtrain <- xtrain[,interestedFeatures]
+training <- cbind(training_subjects, y_train, xtrain)
+training[1:5,]
+```
+
+Remove old variables from workspace.
+```{r}
+rm(features, training_subjects, x_train, xtrain, y_train)
+```
+
+---
+
+#### Prepare Test Data  
+
+
+Read activity.
+```{R}
+y_test <- read.delim("data/test/y_test.txt",  sep = "\n", colClasses = "character", header = FALSE)
+colnames(y_test) <- "activity"
+y_test[1:5,]
+```
+
+
+Read test subjects
+```{r}
+test_subjects <- read.delim("data/test/subject_test.txt",  sep = "\n", colClasses = "character", header = FALSE)
+colnames(test_subjects) <- "subject"
+test_subjects[1:5,]
+```
+
+
+Read x_test
+```{r}
+x_test <- read.delim("data/test/x_test.txt", sep = "\n", colClasses = "character", header = FALSE)
+xtest <- separate(x_test, 1, as.character(1:562), sep = "(\\s\\s|\\s)")
+x_test[1,1]
+```
+
+
+Remove empty first column
+```{r}
+xtest <- xtest[,2:562]
+xtest[1,]
+```
+
+Apply column names from the features data frame.  
+Extract only the columns we are interested in (mean and standard deviation).
+```{r}
+colnames(xtest) <- featuresDf[,2] 
+xtest <- xtest[,interestedFeatures]
+xtest[1:5,]
+```
+
+Join x_test and y_test creating training
+```{r}
+testing <- cbind(test_subjects, y_test, xtest)
+testing[1:5,]
+```
+
+
+Remove old variables from workspace
+```{r}
+rm(test_subjects, x_test, xtest, y_test, featuresDf, interestedFeatures)
+```
+
+---
+
+#### Combine Training and Test Data
+
+Create combined data set from training and testing
+```{r}
+combinded <- rbind(training, testing)
+rm(training, testing)
+combinded[1:5,]
+```
+
+Create activity labels data set
+```{r}
+activityLabels <- read.delim("data/activity_labels.txt", sep = "\n", colClasses = "character", header = FALSE)
+activityLabels[1:5,]
+```
+
+```{r}
+activityDf <- separate(activityLabels, 1, c("c","v"), sep = "(\\s\\s|\\s)")
+rm(activityLabels)
+activityDf[1:5,]
+```
+
+
+Create Dplyr data tables
+```{r}
+activities <- tbl_df(activityDf)
+combo <- tbl_df(combinded)
+rm(combinded, activityDf)
+```
+
+Join activity labels to the main data table.  
+Rename the appended column to activityLabel
+```{r}
+joined <- left_join(combo, select(activities, c, v), by = c("activity" = "c"))
+colnames(joined)[82] <- "activityLabel"
+rm(combo, activities)
+joined[1:5,]
+```
+
+Replace activity with its related label
+```{r}
+joined <- joined %>% mutate(activity = activityLabel)
+joined[1:5,]
+```
+
+Remove temporary activityLabel column added earlier.
+```{r}
+joined <- select(joined, -c("activityLabel"))
+joined[1:5,]
+```
+
+Convert all readings columns to the numeric type.
+```{r}
+joined <- joined %>% mutate_at(3:81,as.numeric)
+joined[1:5,]
+```
+
+Group data by subject and activity.
+```{r}
+grouped <- joined %>% group_by(subject, activity)
+```
+
+Summarise the data columns by the mean function.
+```{r}
+result <- grouped %>% summarise_each(mean)
+```
+
+Print out final data table.
+```{r}
+rm(joined, grouped)
+result
+```
