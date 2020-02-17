@@ -214,4 +214,5 @@ Print out final data table.
 ```{r}
 rm(grouped)
 result
+write.table(result,file = "output.txt",row.names = FALSE)
 ```
