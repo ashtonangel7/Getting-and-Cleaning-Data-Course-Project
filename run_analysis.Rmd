@@ -198,6 +198,8 @@ joined <- joined %>% mutate_at(3:81,as.numeric)
 joined[1:5,]
 ```
 
+The joined data table is the un-grouped un-summarised data.  
+
 Group data by subject and activity.
 ```{r}
 grouped <- joined %>% group_by(subject, activity)
@@ -210,6 +212,6 @@ result <- grouped %>% summarise_each(mean)
 
 Print out final data table.
 ```{r}
-rm(joined, grouped)
+rm(grouped)
 result
 ```
